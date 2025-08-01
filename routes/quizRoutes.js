@@ -4,10 +4,19 @@ const quizController = require('../controllers/quizController');
 const verifyToken = require('../middlewares/verifyToken'); // ✅ Import
 const checkRole = require('../middlewares/checkRole');
 const UserStats = require('../models/UserStats');
+const questionController = require('../controllers/questionController');
+
 
 router.post('/', verifyToken, checkRole('admin'), quizController.createQuiz);
 router.get('/', quizController.getAllQuizzes);
 router.get('/:id', quizController.getQuizById);
+router.put('/:id', verifyToken, checkRole('admin'), quizController.updateQuiz);
+router.delete('/:id', verifyToken, checkRole('admin'), quizController.deleteQuiz);
+// Routes Questions liées à un quiz
+router.post('/:quizId/questions', verifyToken, checkRole('admin'), questionController.createQuestion);
+router.get('/:quizId/questions', verifyToken, questionController.getQuestionsByQuiz);
+router.put('/questions/:id', verifyToken, checkRole('admin'), questionController.updateQuestion);
+router.delete('/questions/:id', verifyToken, checkRole('admin'), questionController.deleteQuestion);
 
 module.exports = router;
 

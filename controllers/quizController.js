@@ -29,3 +29,23 @@ exports.getQuizById = async (req, res) => {
   }
 };
 
+
+exports.updateQuiz = async (req, res) => {
+  try {
+    const quiz = await Quiz.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!quiz) return res.status(404).json({ error: 'Quiz non trouvé' });
+    res.json(quiz);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+exports.deleteQuiz = async (req, res) => {
+  try {
+    await Question.deleteMany({ quizId: req.params.id });
+    await Quiz.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Quiz supprimé avec ses questions' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};

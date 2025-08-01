@@ -1,18 +1,13 @@
+// models/Quiz.js
 const mongoose = require('mongoose');
 
-const questionSchema = new mongoose.Schema({
-  questionText:   { type: String, required: true },
-  options:        [{ type: String, required: true }],
-  correctAnswer:  { type: Number, required: true },
-});
-
 const quizSchema = new mongoose.Schema({
-  title:       { type: String, required: true },
-  description: { type: String },
-  questions:   [questionSchema],
-  createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  createdAt:   { type: Date, default: Date.now },
+  title: { type: String, required: true },
+  description: String,
+  status: { type: String, enum: ['draft', 'active', 'archived'], default: 'draft' },
+  createdAt: { type: Date, default: Date.now },
+  participants: { type: Number, default: 0 },
+  averageScore: { type: Number, default: 0 }
 });
 
 module.exports = mongoose.model('Quiz', quizSchema);
-
