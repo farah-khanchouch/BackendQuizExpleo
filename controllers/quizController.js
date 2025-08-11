@@ -1,4 +1,6 @@
 const Quiz = require('../models/Quiz');
+const Question = require('../models/Question'); // <-- AJOUTE CETTE LIGNE
+
 
 exports.createQuiz = async (req, res) => {
   try {

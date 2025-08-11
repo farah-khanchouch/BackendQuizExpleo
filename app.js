@@ -17,10 +17,14 @@ mongoose.connect(process.env.MONGO_URI)
 const userRoutes = require('./routes/userRoutes');
 const quizRoutes = require('./routes/quizRoutes');
 const authRoutes = require('./routes/authRoutes');
+const questionRoutes = require('./routes/questionRoutes');
+const badgeRoutes = require('./routes/badgeRoutes');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/quizzes', quizRoutes);
-
+app.use('/api/questions', questionRoutes);
+app.use('/api/badges', badgeRoutes);
 app.get('/', (req, res) => {
   res.send('Quiz API 🚀');
 });
