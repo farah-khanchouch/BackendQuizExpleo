@@ -11,6 +11,7 @@ const quizSchema = new mongoose.Schema({
   badgeClass: String,
   status: { type: String, enum: ['draft', 'active', 'archived'], default: 'draft' },
   createdAt: { type: Date, default: Date.now },
+  cbus: [{ type: String }],
   participants: { type: Number, default: 0 },
   averageScore: { type: Number, default: 0 }
 });
