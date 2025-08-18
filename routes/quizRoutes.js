@@ -8,7 +8,9 @@ const questionController = require('../controllers/questionController');
 
 
 router.post('/', verifyToken, checkRole('admin'), quizController.createQuiz);
+
 router.get('/', quizController.getAllQuizzes);
+
 router.get('/:id', quizController.getQuizById);
 router.put('/:id', verifyToken, checkRole('admin'), quizController.updateQuiz);
 router.delete('/:id', verifyToken, checkRole('admin'), quizController.deleteQuiz);
@@ -17,6 +19,7 @@ router.post('/:quizId/questions', verifyToken, checkRole('admin'), questionContr
 router.get('/:quizId/questions', verifyToken, questionController.getQuestionsByQuiz);
 router.put('/questions/:id', verifyToken, checkRole('admin'), questionController.updateQuestion);
 router.delete('/questions/:id', verifyToken, checkRole('admin'), questionController.deleteQuestion);
+router.post('/quizzes/:id/duplicate', quizController.duplicateQuiz);
 
 module.exports = router;
 
@@ -86,4 +89,43 @@ router.get('/stats', verifyToken, async (req, res) => {
       res.status(500).json({ error: 'Erreur serveur' });
     }
   });
+  // quiz.routes.js ou quiz.controller.js
+const multer = require('multer');
+const path = require('path');
+
+// Config stockage local (à adapter si tu veux S3 ou autre)
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/'); // Dossier où stocker les images
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
+
+// Route de création de quiz (exemple)
+router.post('/api/quizzes', upload.single('image'), async (req, res) => {
+  try {
+    // Les champs texte sont dans req.body, l’image dans req.file
+    const { title, description, ...otherFields } = req.body;
+    let imageUrl = '';
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`; // URL d’accès public à l’image
+    }
+    // Créer le quiz en base avec imageUrl
+    const quiz = new QuizModel({
+      title,
+      description,
+      imageUrl,
+      ...otherFields
+    });
+    await quiz.save();
+    res.status(201).json(quiz);
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lors de la création du quiz.' });
+  }
+});
+
   

@@ -16,8 +16,8 @@ exports.getAllQuizzes = async (req, res) => {
   try {
     const quizzes = await Quiz.find();
     res.json(quizzes);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 };
 
@@ -34,8 +34,17 @@ exports.getQuizById = async (req, res) => {
 
 exports.updateQuiz = async (req, res) => {
   try {
-    const quiz = await Quiz.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!quiz) return res.status(404).json({ error: 'Quiz non trouvé' });
+    // On récupère le quiz existant
+    const quizExistant = await Quiz.findById(req.params.id);
+    if (!quizExistant) return res.status(404).json({ error: 'Quiz non trouvé' });
+
+    // On ne modifie questions QUE si elles sont explicitement envoyées
+    const dataToUpdate = { ...req.body };
+    if (typeof req.body.questions === 'undefined') {
+      dataToUpdate.questions = quizExistant.questions;
+    }
+
+    const quiz = await Quiz.findByIdAndUpdate(req.params.id, dataToUpdate, { new: true });
     res.json(quiz);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -49,5 +58,34 @@ exports.deleteQuiz = async (req, res) => {
     res.json({ message: 'Quiz supprimé avec ses questions' });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+};
+exports.duplicateQuiz = async (req, res) => {
+  try {
+    // 1. Récupérer le quiz d'origine
+    const originalQuiz = await Quiz.findById(req.params.id);
+    if (!originalQuiz) return res.status(404).json({ message: 'Quiz non trouvé' });
+
+    // 2. Créer un nouveau quiz (en copiant les champs, mais sans l'_id ni les questions)
+    const newQuizData = originalQuiz.toObject();
+    delete newQuizData._id;
+    delete newQuizData.id;
+    newQuizData.title = newQuizData.title + '';
+    const newQuiz = new Quiz(newQuizData);
+    await newQuiz.save();
+
+    // 3. Copier toutes les questions du quiz d'origine
+    const questions = await Question.find({ quizId: originalQuiz._id });
+    const newQuestions = questions.map(q => {
+      const obj = q.toObject();
+      delete obj._id;
+      obj.quizId = newQuiz._id;
+      return obj;
+    });
+    await Question.insertMany(newQuestions);
+
+    res.status(201).json(newQuiz);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
