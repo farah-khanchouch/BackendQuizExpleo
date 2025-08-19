@@ -127,5 +127,16 @@ router.post('/api/quizzes', upload.single('image'), async (req, res) => {
     res.status(500).json({ error: 'Erreur lors de la création du quiz.' });
   }
 });
-
+// Ajoute cette route dans tes routes quiz
+router.post('/:quizId/submit', async (req, res) => {
+  const { quizId } = req.params;
+  const { answers } = req.body;
+  // Ici tu peux traiter et sauvegarder les réponses
+  // Pour l’instant, on renvoie une réponse de succès factice
+  res.json({
+    message: 'Résultat reçu',
+    badges: [], // ou les badges calculés si tu veux
+    success: true
+  });
+});
   
