@@ -20,7 +20,14 @@ router.get('/:quizId/questions', verifyToken, questionController.getQuestionsByQ
 router.put('/questions/:id', verifyToken, checkRole('admin'), questionController.updateQuestion);
 router.delete('/questions/:id', verifyToken, checkRole('admin'), questionController.deleteQuestion);
 router.post('/quizzes/:id/duplicate', quizController.duplicateQuiz);
+// Routes pour les résultats de quiz
+const quizResultController = require('../controllers/quizResultController');
 
+// Créer un résultat de quiz
+router.post('/quiz-results', verifyToken, quizResultController.createResult);
+
+// Récupérer les résultats d'un utilisateur
+router.get('/quiz-results/:userId', verifyToken, quizResultController.getUserResults);
 module.exports = router;
 
 
@@ -32,8 +39,10 @@ async function updateUserStats(userId, score, timeSpent) {
 
   stats.quizCompleted += 1;
   stats.totalScore += score;
-  stats.totalQuizTaken += 1;
+  stats.totalQuestions += req.body.totalQuestions || 1;
+  stats.correctAnswers += req.body.correctAnswers || 0;
   stats.totalTimeSpent += timeSpent;
+  stats.averageScore = Math.round(stats.totalScore / stats.quizCompleted);
 
   await stats.save();
 }

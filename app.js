@@ -19,12 +19,17 @@ const quizRoutes = require('./routes/quizRoutes');
 const authRoutes = require('./routes/authRoutes');
 const questionRoutes = require('./routes/questionRoutes');
 const badgeRoutes = require('./routes/badgeRoutes');
+const quizResultRoutes=require('./routes/quizResultRoutes')
+const leaderboardRoutes = require('./routes/leaderboard'); // NOUVELLE ROUTE À AJOUTER
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/badges', badgeRoutes);
+app.use('/api/quiz-results', quizResultRoutes); // ← AJOUT IMPORTANT
+app.use('/api/leaderboard', leaderboardRoutes); // NOUVELLE ROUTE À AJOUTER
+
 // Dans app.js ou server.js
 app.use('/uploads', express.static('uploads'));
 app.get('/', (req, res) => {

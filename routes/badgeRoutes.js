@@ -55,5 +55,13 @@ router.patch('/:id/activation', async (req, res) => {
   }
 });
 // (autres routes CRUD ici...)
-
+// GET /api/badges
+router.get('/', async (req, res) => {
+  try {
+    const badges = await Badge.find();
+    res.json(badges);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;
