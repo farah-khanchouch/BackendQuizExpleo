@@ -7,11 +7,11 @@ exports.getLeaderboard = async (req, res) => {
   try {
     console.log('Chargement du classement général...');
 
-    // Agrégation pour calculer les scores totaux par utilisateur
+    // CORRECTION : Agrégation avec jointure pour récupérer les données utilisateur
     const leaderboardData = await QuizResult.aggregate([
       {
         $group: {
-          _id: '$userId', // CBU du département
+          _id: '$userId', // ObjectId de l'utilisateur
           totalScore: { $sum: '$pointsEarned' },
           averageScore: { $avg: '$percentage' },
           completedQuizzes: { $sum: 1 },
@@ -21,54 +21,58 @@ exports.getLeaderboard = async (req, res) => {
         }
       },
       {
+        $lookup: {
+          from: 'users', // Collection des utilisateurs
+          localField: '_id',
+          foreignField: '_id',
+          as: 'userInfo'
+        }
+      },
+      {
+        $unwind: {
+          path: '$userInfo',
+          preserveNullAndEmptyArrays: true // Garde même si pas d'utilisateur trouvé
+        }
+      },
+      {
         $sort: { 
-          averageScore: -1, // CHANGÉ: Trier par moyenne d'abord
+          averageScore: -1, // Trier par moyenne d'abord
           totalScore: -1    // Puis par score total
         }
       },
       {
         $limit: 100
+      },
+      {
+        $project: {
+          _id: 1,
+          totalScore: 1,
+          averageScore: { $round: ['$averageScore', 2] },
+          completedQuizzes: 1,
+          bestScore: { $round: ['$bestScore', 2] },
+          totalTimeSpent: 1,
+          lastActivity: 1,
+          userName: { $ifNull: ['$userInfo.username', 'Utilisateur inconnu'] },
+          userCbu: { $ifNull: ['$userInfo.cbu', 'Département inconnu'] }
+        }
       }
     ]);
 
     console.log(`${leaderboardData.length} utilisateurs trouvés dans le classement`);
 
-    // Enrichir avec les données utilisateur
-    const enrichedLeaderboard = await Promise.all(
-      leaderboardData.map(async (userData, index) => {
-        try {
-          // CORRECTION: Chercher uniquement par CBU puisque userData._id est un CBU
-          const user = await User.findOne({ cbu: userData._id }).lean();
-
-          return {
-            rank: index + 1,
-            userId: user ? user._id : userData._id, // ObjectId si trouvé, sinon CBU
-            userName: user ? user.username : 'Utilisateur inconnu',
-            userCbu: userData._id, // Le CBU du département
-            totalScore: userData.totalScore,
-            averageScore: Math.round(userData.averageScore * 100) / 100,
-            completedQuizzes: userData.completedQuizzes,
-            bestScore: Math.round(userData.bestScore * 100) / 100,
-            totalTimeSpent: userData.totalTimeSpent,
-            lastActivity: userData.lastActivity
-          };
-        } catch (error) {
-          console.error(`Erreur lors de l'enrichissement pour l'utilisateur ${userData._id}:`, error);
-          return {
-            rank: index + 1,
-            userId: userData._id, // CBU
-            userName: 'Utilisateur inconnu',
-            userCbu: userData._id,
-            totalScore: userData.totalScore,
-            averageScore: Math.round(userData.averageScore * 100) / 100,
-            completedQuizzes: userData.completedQuizzes,
-            bestScore: Math.round(userData.bestScore * 100) / 100,
-            totalTimeSpent: userData.totalTimeSpent,
-            lastActivity: userData.lastActivity
-          };
-        }
-      })
-    );
+    // Mapper les résultats avec le rang
+    const enrichedLeaderboard = leaderboardData.map((userData, index) => ({
+      rank: index + 1,
+      userId: userData._id,
+      userName: userData.userName,
+      userCbu: userData.userCbu,
+      totalScore: userData.totalScore,
+      averageScore: userData.averageScore,
+      completedQuizzes: userData.completedQuizzes,
+      bestScore: userData.bestScore,
+      totalTimeSpent: userData.totalTimeSpent,
+      lastActivity: userData.lastActivity
+    }));
 
     res.json(enrichedLeaderboard);
   } catch (error) {
@@ -89,7 +93,7 @@ exports.getTopUsers = async (req, res) => {
     const topUsers = await QuizResult.aggregate([
       {
         $group: {
-          _id: '$userId', // CBU
+          _id: '$userId', // ObjectId de l'utilisateur
           totalScore: { $sum: '$pointsEarned' },
           averageScore: { $avg: '$percentage' },
           completedQuizzes: { $sum: 1 },
@@ -99,52 +103,56 @@ exports.getTopUsers = async (req, res) => {
         }
       },
       {
+        $lookup: {
+          from: 'users', // Collection des utilisateurs
+          localField: '_id',
+          foreignField: '_id',
+          as: 'userInfo'
+        }
+      },
+      {
+        $unwind: {
+          path: '$userInfo',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
         $sort: { 
-          averageScore: -1, // CHANGÉ: Classement par moyenne
+          averageScore: -1,
           totalScore: -1
         }
       },
       {
         $limit: limit
+      },
+      {
+        $project: {
+          _id: 1,
+          totalScore: 1,
+          averageScore: { $round: ['$averageScore', 2] },
+          completedQuizzes: 1,
+          bestScore: { $round: ['$bestScore', 2] },
+          totalTimeSpent: 1,
+          lastActivity: 1,
+          userName: { $ifNull: ['$userInfo.username', 'Utilisateur inconnu'] },
+          userCbu: { $ifNull: ['$userInfo.cbu', 'Département inconnu'] }
+        }
       }
     ]);
 
-    // Enrichir avec les données utilisateur
-    const enrichedTopUsers = await Promise.all(
-      topUsers.map(async (userData, index) => {
-        try {
-          // CORRECTION: Chercher uniquement par CBU
-          const user = await User.findOne({ cbu: userData._id }).lean();
-
-          return {
-            rank: index + 1,
-            userId: user ? user._id : userData._id, // ObjectId MongoDB si trouvé
-            userName: user ? user.username : 'Utilisateur inconnu',
-            userCbu: userData._id, // CBU du département
-            totalScore: userData.totalScore,
-            averageScore: Math.round(userData.averageScore * 100) / 100,
-            completedQuizzes: userData.completedQuizzes,
-            bestScore: Math.round(userData.bestScore * 100) / 100,
-            totalTimeSpent: userData.totalTimeSpent,
-            lastActivity: userData.lastActivity
-          };
-        } catch (error) {
-          console.error(`Erreur lors de l'enrichissement:`, error);
-          return {
-            rank: index + 1,
-            userId: userData._id, // CBU
-            userName: 'Utilisateur inconnu',
-            userCbu: userData._id,
-            totalScore: userData.totalScore,
-            averageScore: Math.round(userData.averageScore * 100) / 100,
-            completedQuizzes: userData.completedQuizzes,
-            bestScore: Math.round(userData.bestScore * 100) / 100,
-            totalTimeSpent: userData.totalTimeSpent,
-            lastActivity: userData.lastActivity
-          };
-        }
-      })
-    );
+    // Mapper les résultats avec le rang
+    const enrichedTopUsers = topUsers.map((userData, index) => ({
+      rank: index + 1,
+      userId: userData._id,
+      userName: userData.userName,
+      userCbu: userData.userCbu,
+      totalScore: userData.totalScore,
+      averageScore: userData.averageScore,
+      completedQuizzes: userData.completedQuizzes,
+      bestScore: userData.bestScore,
+      totalTimeSpent: userData.totalTimeSpent,
+      lastActivity: userData.lastActivity
+    }));
 
     console.log(`Top ${limit} utilisateurs chargés avec succès`);
     res.json(enrichedTopUsers);
@@ -163,43 +171,60 @@ exports.getUserRank = async (req, res) => {
     const { userId } = req.params;
     console.log(`Calcul du rang pour l'utilisateur: ${userId}`);
 
-    // CORRECTION: Déterminer si c'est un ObjectId ou un CBU
-    let userCbu = userId;
-    
-    if (mongoose.Types.ObjectId.isValid(userId)) {
-      // Si c'est un ObjectId, trouver le CBU correspondant
-      const user = await User.findById(userId);
-      if (user) {
-        userCbu = user.cbu;
-      } else {
-        return res.status(404).json({ error: 'Utilisateur non trouvé' });
-      }
+    // Vérifier si c'est un ObjectId valide
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'ID utilisateur invalide' });
     }
 
-    // Calculer le classement complet
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    // Calculer le classement complet avec jointure
     const allUsers = await QuizResult.aggregate([
       {
         $group: {
-          _id: '$userId', // CBU
+          _id: '$userId',
           totalScore: { $sum: '$pointsEarned' },
           averageScore: { $avg: '$percentage' }
         }
       },
       {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'userInfo'
+        }
+      },
+      {
+        $unwind: {
+          path: '$userInfo',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
         $sort: { 
-          averageScore: -1, // Classement par moyenne
+          averageScore: -1,
           totalScore: -1
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          totalScore: 1,
+          averageScore: { $round: ['$averageScore', 2] },
+          userName: { $ifNull: ['$userInfo.username', 'Utilisateur inconnu'] },
+          userCbu: { $ifNull: ['$userInfo.cbu', 'Département inconnu'] }
         }
       }
     ]);
 
-    // Trouver la position de l'utilisateur par CBU
-    const userIndex = allUsers.findIndex(user => user._id === userCbu);
+    // Trouver la position de l'utilisateur par ObjectId
+    const userIndex = allUsers.findIndex(user => user._id.toString() === userObjectId.toString());
     
     if (userIndex === -1) {
       return res.status(404).json({ 
         error: 'Utilisateur non trouvé dans le classement',
-        searchedCbu: userCbu
+        searchedUserId: userId
       });
     }
 
@@ -209,9 +234,11 @@ exports.getUserRank = async (req, res) => {
       rank: userIndex + 1,
       totalUsers: allUsers.length,
       userStats: {
-        userId: userStats._id, // CBU
+        userId: userStats._id,
+        userName: userStats.userName,
+        userCbu: userStats.userCbu,
         totalScore: userStats.totalScore,
-        averageScore: Math.round(userStats.averageScore * 100) / 100
+        averageScore: userStats.averageScore
       }
     });
   } catch (error) {
@@ -233,7 +260,7 @@ exports.getGeneralStats = async (req, res) => {
         $group: {
           _id: null,
           totalQuizzes: { $sum: 1 },
-          totalUsers: { $addToSet: '$userId' }, // CBU uniques
+          totalUsers: { $addToSet: '$userId' }, // ObjectId uniques
           averageScore: { $avg: '$percentage' },
           bestScore: { $max: '$percentage' },
           totalPointsDistributed: { $sum: '$pointsEarned' },
