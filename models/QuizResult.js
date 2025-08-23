@@ -2,8 +2,16 @@
 const mongoose = require('mongoose');
 
 const quizResultSchema = new mongoose.Schema({
-  userId: { type: String, required: true }, // CBU de l'utilisateur
-  quizId: { type: String, required: true }, // ID du quiz
+  userId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User',
+    required: true 
+  }, // Référence vers l'utilisateur
+  quizId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Quiz',
+    required: true 
+  }, // Référence vers le quiz
   quizTitle: { type: String, required: false },
   theme: { type: String, required: false },
   score: { type: Number, required: true },
@@ -19,5 +27,7 @@ const quizResultSchema = new mongoose.Schema({
 // Index pour améliorer les performances
 quizResultSchema.index({ userId: 1 });
 quizResultSchema.index({ userId: 1, completedAt: -1 });
+quizResultSchema.index({ quizId: 1 });
+quizResultSchema.index({ userId: 1, quizId: 1 });
 
 module.exports = mongoose.model('QuizResult', quizResultSchema);
