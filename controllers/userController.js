@@ -1,16 +1,25 @@
-const User = require('../models/User');
-
-// Votre méthode existante
+const UserStats = require('../models/UserStats');
+const Quiz = require('../models/Quiz');
 exports.createUser = async (req, res) => {
   try {
     const user = new User(req.body);
     await user.save();
+    
+    // Créer les statistiques utilisateur
+    await UserStats.create({ 
+      userId: user._id,
+      quizCompleted: 0,
+      totalScore: 0,
+      totalQuestions: 0,
+      correctAnswers: 0,
+      averageScore: 0
+    });
+
     res.status(201).json(user);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 };
-
 // NOUVELLES MÉTHODES À AJOUTER :
 
 // PUT /api/users/:id/profile - Mettre à jour le profil utilisateur
@@ -120,10 +129,16 @@ exports.getUserById = async (req, res) => {
     const { id } = req.params;
     
     const user = await User.findById(id).select('-password');
-    
     if (!user) {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
     }
+
+    // Récupérer les statistiques
+    const stats = await UserStats.findOne({ userId: id }) || {
+      quizCompleted: 0,
+      totalScore: 0,
+      averageScore: 0
+    };
 
     res.json({
       id: user._id,
@@ -131,7 +146,13 @@ exports.getUserById = async (req, res) => {
       email: user.email,
       cbu: user.cbu,
       avatar: user.avatar,
-      role: user.role
+      role: user.role,
+      stats: {
+        totalQuizzes: await Quiz.countDocuments({ status: 'active' }),
+        completedQuizzes: stats.quizCompleted,
+        averageScore: stats.averageScore,
+        badges: Math.min(Math.floor(stats.quizCompleted / 2), 5)
+      }
     });
 
   } catch (error) {

@@ -4,26 +4,25 @@ const userController = require('../controllers/userController');
 const User = require('../models/User');
 const UserStats = require('../models/UserStats');
 
-// ✅ ROUTE MANQUANTE - GET tous les utilisateurs pour l'admin
+// GET tous les utilisateurs
 router.get('/', async (req, res) => {
   try {
-    console.log('🔍 GET /api/users - Récupération de tous les utilisateurs');
+    console.log('🔍 GET /api/users - Récupération pour admin interface');
     
-    // Récupérer tous les collaborateurs avec leurs stats
     const collaborators = await User.find({ role: 'collaborator' }).sort({ createdAt: -1 });
-    
     console.log(`📊 ${collaborators.length} collaborateurs trouvés`);
     
-    // Pour chaque collaborateur, récupérer ses stats
     const usersWithStats = await Promise.all(
       collaborators.map(async (user) => {
-        const stats = await UserStats.findOne({ userId: user._id }) || {
-          totalQuizzes: 0,
-          completedQuizzes: 0,
-          averageScore: 0,
-          badges: 0,
-          totalPoints: 0
-        };
+        const stats = await UserStats.findOne({ userId: user._id });
+        
+        // Utiliser les champs du modèle UserStats
+        const completedQuizzes = stats ? stats.quizCompleted || 0 : 0;
+        const totalScore = stats ? stats.totalScore || 0 : 0;
+        const averageScore = stats && stats.totalQuestions > 0 
+          ? Math.round((stats.correctAnswers / stats.totalQuestions) * 100)
+          : 0;
+        const badges = Math.floor(completedQuizzes / 2);
         
         return {
           id: user._id.toString(),
@@ -31,19 +30,19 @@ router.get('/', async (req, res) => {
           email: user.email,
           avatar: user.avatar,
           cbu: user.cbu || 'Non défini',
-          totalPoints: stats.totalPoints || 0,
+          totalPoints: totalScore,
           joinedAt: user.createdAt ? user.createdAt.toISOString() : new Date().toISOString(),
-          totalQuizzes: stats.totalQuizzes || 0,
-          completedQuizzes: stats.completedQuizzes || 0,
-          averageScore: stats.averageScore || 0,
-          badges: stats.badges || 0,
+          totalQuizzes: 10, // Valeur fixe ou à calculer
+          completedQuizzes: completedQuizzes,
+          averageScore: averageScore,
+          badges: badges,
           status: user.status || 'active',
           lastActivity: user.updatedAt ? user.updatedAt.toISOString() : new Date().toISOString()
         };
       })
     );
     
-    console.log('📤 Envoi des utilisateurs formatés');
+    console.log('📤 Premier utilisateur exemple:', usersWithStats[0]);
     res.json(usersWithStats);
     
   } catch (error) {
@@ -55,7 +54,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ✅ GET un utilisateur par ID
+// GET un utilisateur par ID
 router.get('/:id', async (req, res) => {
   try {
     console.log(`🔍 GET /api/users/${req.params.id}`);
@@ -65,13 +64,13 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
     }
     
-    const stats = await UserStats.findOne({ userId: user._id }) || {
-      totalQuizzes: 0,
-      completedQuizzes: 0,
-      averageScore: 0,
-      badges: 0,
-      totalPoints: 0
-    };
+    const stats = await UserStats.findOne({ userId: user._id });
+    const completedQuizzes = stats ? stats.quizCompleted || 0 : 0;
+    const totalScore = stats ? stats.totalScore || 0 : 0;
+    const averageScore = stats && stats.totalQuestions > 0 
+      ? Math.round((stats.correctAnswers / stats.totalQuestions) * 100)
+      : 0;
+    const badges = Math.floor(completedQuizzes / 2);
     
     const formattedUser = {
       id: user._id.toString(),
@@ -79,12 +78,12 @@ router.get('/:id', async (req, res) => {
       email: user.email,
       avatar: user.avatar,
       cbu: user.cbu || 'Non défini',
-      totalPoints: stats.totalPoints || 0,
+      totalPoints: totalScore,
       joinedAt: user.createdAt ? user.createdAt.toISOString() : new Date().toISOString(),
-      totalQuizzes: stats.totalQuizzes || 0,
-      completedQuizzes: stats.completedQuizzes || 0,
-      averageScore: stats.averageScore || 0,
-      badges: stats.badges || 0,
+      totalQuizzes: 10,
+      completedQuizzes: completedQuizzes,
+      averageScore: averageScore,
+      badges: badges,
       status: user.status || 'active',
       lastActivity: user.updatedAt ? user.updatedAt.toISOString() : new Date().toISOString()
     };
@@ -97,7 +96,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ✅ PATCH - Mettre à jour un utilisateur
+// PATCH - Mettre à jour un utilisateur
 router.patch('/:id', async (req, res) => {
   try {
     console.log(`🔄 PATCH /api/users/${req.params.id}`);
@@ -115,14 +114,14 @@ router.patch('/:id', async (req, res) => {
     
     console.log('✅ Utilisateur mis à jour');
     
-    // Récupérer les stats aussi
-    const stats = await UserStats.findOne({ userId: updatedUser._id }) || {
-      totalQuizzes: 0,
-      completedQuizzes: 0,
-      averageScore: 0,
-      badges: 0,
-      totalPoints: 0
-    };
+    // Récupérer les stats
+    const stats = await UserStats.findOne({ userId: updatedUser._id });
+    const completedQuizzes = stats ? stats.quizCompleted || 0 : 0;
+    const totalScore = stats ? stats.totalScore || 0 : 0;
+    const averageScore = stats && stats.totalQuestions > 0 
+      ? Math.round((stats.correctAnswers / stats.totalQuestions) * 100)
+      : 0;
+    const badges = Math.floor(completedQuizzes / 2);
     
     const formattedUser = {
       id: updatedUser._id.toString(),
@@ -130,12 +129,12 @@ router.patch('/:id', async (req, res) => {
       email: updatedUser.email,
       avatar: updatedUser.avatar,
       cbu: updatedUser.cbu || 'Non défini',
-      totalPoints: stats.totalPoints || 0,
+      totalPoints: totalScore,
       joinedAt: updatedUser.createdAt ? updatedUser.createdAt.toISOString() : new Date().toISOString(),
-      totalQuizzes: stats.totalQuizzes || 0,
-      completedQuizzes: stats.completedQuizzes || 0,
-      averageScore: stats.averageScore || 0,
-      badges: stats.badges || 0,
+      totalQuizzes: 10,
+      completedQuizzes: completedQuizzes,
+      averageScore: averageScore,
+      badges: badges,
       status: updatedUser.status || 'active',
       lastActivity: updatedUser.updatedAt ? updatedUser.updatedAt.toISOString() : new Date().toISOString()
     };
@@ -148,7 +147,7 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// ✅ DELETE - Supprimer un utilisateur
+// DELETE - Supprimer un utilisateur
 router.delete('/:id', async (req, res) => {
   try {
     console.log(`🗑️ DELETE /api/users/${req.params.id}`);
@@ -172,9 +171,10 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Routes existantes
+// Créer un nouvel utilisateur
 router.post('/', userController.createUser);
 
+// Enregistrer un nouvel utilisateur
 router.post('/register', async (req, res) => {
   try {
     const { username, email, password, cbu } = req.body;
@@ -198,24 +198,36 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// Récupérer les collaborateurs avec leurs statistiques
 router.get('/collaborators-with-stats', async (req, res) => {
   try {
     const collaborators = await User.find({ role: 'collaborator' });
 
-    // Pour chaque collaborateur, chercher ses stats
     const data = await Promise.all(
       collaborators.map(async (user) => {
         const stats = await UserStats.findOne({ userId: user._id });
+        const completedQuizzes = stats ? stats.quizCompleted || 0 : 0;
+        
         return {
-          user,
-          stats
+          user: {
+            ...user.toObject(),
+            stats: {
+              quizCompleted: completedQuizzes,
+              totalScore: stats ? stats.totalScore || 0 : 0,
+              averageScore: stats && stats.totalQuestions > 0 
+                ? Math.round((stats.correctAnswers / stats.totalQuestions) * 100)
+                : 0,
+              badges: Math.floor(completedQuizzes / 2)
+            }
+          }
         };
       })
     );
 
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('❌ Erreur GET /api/users/collaborators-with-stats:', err);
+    res.status(500).json({ error: 'Erreur serveur', details: err.message });
   }
 });
 

@@ -23,6 +23,8 @@ const quizResultRoutes=require('./routes/quizResultRoutes')
 const leaderboardRoutes = require('./routes/leaderboard'); // NOUVELLE ROUTE À AJOUTER
 // Dans votre app.js
 const dashboardRoutes = require('./routes/dashboard');
+const userBadgeRoutes = require('./routes/userBadges');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/quizzes', quizRoutes);
@@ -31,7 +33,13 @@ app.use('/api/badges', badgeRoutes);
 app.use('/api/quiz-results', quizResultRoutes); // ← AJOUT IMPORTANT
 app.use('/api/leaderboard', leaderboardRoutes); // NOUVELLE ROUTE À AJOUTER
 app.use('/api/dashboard', dashboardRoutes);
+// Ajoutez cette ligne avec vos autres routes
+app.use('/api/stats', require('./routes/stats'));
+// Dans app.js ou server.js
 
+// ... autres middlewares
+
+app.use('/api/users', userBadgeRoutes);
 // Dans app.js ou server.js
 app.use('/uploads', express.static('uploads'));
 app.get('/', (req, res) => {
