@@ -13,7 +13,9 @@ const quizSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   cbus: [{ type: String }],
   participants: { type: Number, default: 0 },
-  averageScore: { type: Number, default: 0 }
+  averageScore: { type: Number, default: 0 },
+  isReplayable: { type: Boolean, default: true }  // Ajoutez cette ligne
+
 });
 
 module.exports = mongoose.model('Quiz', quizSchema);

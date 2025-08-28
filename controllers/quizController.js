@@ -1,6 +1,6 @@
 const Quiz = require('../models/Quiz');
 const Question = require('../models/Question'); // <-- AJOUTE CETTE LIGNE
-
+const QuizResult = require('../models/QuizResult'); // ⚠️ Ajoutez cette ligne
 
 exports.createQuiz = async (req, res) => {
   try {
@@ -86,6 +86,91 @@ exports.duplicateQuiz = async (req, res) => {
 
     res.status(201).json(newQuiz);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+exports.getQuizCompletionStatus = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const quizId = req.params.quizId;
+    
+    // Récupérer le quiz pour vérifier s'il est rejouable
+    const quiz = await Quiz.findById(quizId);
+    if (!quiz) {
+      return res.status(404).json({ error: 'Quiz non trouvé' });
+    }
+    
+    // Vérifier si l'utilisateur a déjà terminé ce quiz
+    const result = await QuizResult.findOne({
+      userId: userId,
+      quizId: quizId
+    });
+
+    res.json({
+      completed: !!result,
+      isReplayable: quiz.isReplayable,
+      lastAttempt: result?.completedAt,
+      score: result?.score
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+// AJOUTEZ cette méthode pour sauvegarder correctement les résultats
+exports.submitQuizResult = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const { answers, score, timeSpent, totalQuestions, correctAnswers } = req.body;
+    const userId = req.user._id;
+
+    // Vérifier si l'utilisateur a déjà complété ce quiz
+    const existingResult = await QuizResult.findOne({ userId, quizId });
+    
+    if (existingResult) {
+      const quiz = await Quiz.findById(quizId);
+      if (!quiz.isReplayable) {
+        return res.status(400).json({ 
+          error: 'Ce quiz ne peut être refait qu\'une seule fois' 
+        });
+      }
+      
+      // Si rejouable, mettre à jour le résultat existant
+      existingResult.score = score;
+      existingResult.answers = answers;
+      existingResult.timeSpent = timeSpent;
+      existingResult.correctAnswers = correctAnswers;
+      existingResult.completedAt = new Date();
+      await existingResult.save();
+      
+      return res.json({
+        message: 'Résultat mis à jour',
+        result: existingResult,
+        badges: []
+      });
+    }
+
+    // Créer un nouveau résultat
+    const newResult = new QuizResult({
+      userId,
+      quizId,
+      score,
+      answers,
+      timeSpent,
+      totalQuestions,
+      correctAnswers,
+      completedAt: new Date()
+    });
+
+    await newResult.save();
+
+    res.json({
+      message: 'Résultat enregistré',
+      result: newResult,
+      badges: []
+    });
+
+  } catch (error) {
+    console.error('Erreur lors de la soumission:', error);
     res.status(500).json({ error: error.message });
   }
 };

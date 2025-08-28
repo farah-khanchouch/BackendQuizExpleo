@@ -39,6 +39,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/stats', require('./routes/stats'));
 // Dans app.js ou server.js
 
+// After other route registrations
 // ... autres middlewares
 
 app.use('/api/users', userBadgeRoutes);
