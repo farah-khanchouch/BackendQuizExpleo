@@ -1,20 +1,111 @@
 const express = require('express');
 const router = express.Router();
+const quizController = require('../controllers/quizController');
+const verifyToken = require('../middlewares/verifyToken'); // ✅ Import
+const checkRole = require('../middlewares/checkRole');
+const UserStats = require('../models/UserStats');
+const questionController = require('../controllers/questionController');
+
+
+router.post('/', verifyToken, checkRole('admin'), quizController.createQuiz);
+
+router.get('/', quizController.getAllQuizzes);
+
+router.get('/:id', quizController.getQuizById);
+router.put('/:id', verifyToken, checkRole('admin'), quizController.updateQuiz);
+router.delete('/:id', verifyToken, checkRole('admin'), quizController.deleteQuiz);
+// Routes Questions liées à un quiz
+router.post('/:quizId/questions', verifyToken, checkRole('admin'), questionController.createQuestion);
+router.get('/:quizId/questions', verifyToken, questionController.getQuestionsByQuiz);
+router.put('/questions/:id', verifyToken, checkRole('admin'), questionController.updateQuestion);
+router.delete('/questions/:id', verifyToken, checkRole('admin'), questionController.deleteQuestion);
+router.post('/quizzes/:id/duplicate', quizController.duplicateQuiz);
+// Routes pour les résultats de quiz
+const quizResultController = require('../controllers/quizResultController');
+
+// Créer un résultat de quiz
+router.post('/quiz-results', verifyToken, quizResultController.createResult);
+
+// Récupérer les résultats d'un utilisateur
+router.get('/quiz-results/:userId', verifyToken, quizResultController.getUserResults);
+module.exports = router;
+
+
+async function updateUserStats(userId, score, timeSpent) {
+  let stats = await UserStats.findOne({ userId });
+  if (!stats) {
+    stats = new UserStats({ userId });
+  }
+
+  stats.quizCompleted += 1;
+  stats.totalScore += score;
+  stats.totalQuestions += req.body.totalQuestions || 1;
+  stats.correctAnswers += req.body.correctAnswers || 0;
+  stats.totalTimeSpent += timeSpent;
+  stats.averageScore = Math.round(stats.totalScore / stats.quizCompleted);
+
+  await stats.save();
+}
+
+router.post('/finish', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { score, timeSpent } = req.body;
+
+    if (typeof score !== 'number' || typeof timeSpent !== 'number') {
+      return res.status(400).json({ error: 'Score ou temps invalide' });
+    }
+
+    await updateUserStats(userId, score, timeSpent);
+
+    res.json({ message: 'Stats mises à jour avec succès ! ' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+router.get('/stats', verifyToken, async (req, res) => {
+    try {
+      const userId = req.user._id;
+      const stats = await UserStats.findOne({ userId });
+  
+      if (!stats) {
+        return res.json({
+          quizCompleted: 0,
+          averageScore: 0,
+          ranking: 0,
+          totalTime: '0h 0m'
+        });
+      }
+  
+      // Calcul moyenne
+      const averageScore = stats.totalQuizTaken === 0 ? 0 : Math.round(stats.totalScore / stats.totalQuizTaken);
+  
+      // Format temps total en h et min
+      const hours = Math.floor(stats.totalTimeSpent / 3600);
+      const minutes = Math.floor((stats.totalTimeSpent % 3600) / 60);
+      const totalTimeFormatted = `${hours}h ${minutes}min`;
+  
+      res.json({
+        quizCompleted: stats.quizCompleted,
+        averageScore,
+        ranking: stats.ranking,
+        totalTime: totalTimeFormatted
+      });
+  
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
+  });
+  // quiz.routes.js ou quiz.controller.js
 const multer = require('multer');
 const path = require('path');
 
-// Imports des contrôleurs et middlewares
-const quizController = require('../controllers/quizController');
-const questionController = require('../controllers/questionController');
-const quizResultController = require('../controllers/quizResultController');
-const verifyToken = require('../middlewares/verifyToken');
-const checkRole = require('../middlewares/checkRole');
-const UserStats = require('../models/UserStats');
-
-// Configuration multer
+// Config stockage local (à adapter si tu veux S3 ou autre)
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+    cb(null, 'uploads/'); // Dossier où stocker les images
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -23,117 +114,38 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// ================================
-// ROUTES SPÉCIFIQUES EN PREMIER (TRÈS IMPORTANT!)
-// ================================
-
-// Routes avec chemins fixes - DOIVENT ÊTRE EN PREMIER
-router.get('/stats', verifyToken, async (req, res) => {
+// Route de création de quiz (exemple)
+router.post('/api/quizzes', upload.single('image'), async (req, res) => {
   try {
-    const userId = req.user._id;
-    const stats = await UserStats.findOne({ userId });
-
-    if (!stats) {
-      return res.json({
-        quizCompleted: 0,
-        averageScore: 0,
-        ranking: 0,
-        totalTime: '0h 0min'
-      });
+    // Les champs texte sont dans req.body, l’image dans req.file
+    const { title, description, ...otherFields } = req.body;
+    let imageUrl = '';
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`; // URL d’accès public à l’image
     }
-
-    const averageScore = stats.quizCompleted === 0 ? 0 : Math.round(stats.totalScore / stats.quizCompleted);
-    const hours = Math.floor(stats.totalTimeSpent / 3600);
-    const minutes = Math.floor((stats.totalTimeSpent % 3600) / 60);
-    const totalTimeFormatted = `${hours}h ${minutes}min`;
-
-    res.json({
-      quizCompleted: stats.quizCompleted,
-      averageScore,
-      ranking: stats.ranking,
-      totalTime: totalTimeFormatted
+    // Créer le quiz en base avec imageUrl
+    const quiz = new QuizModel({
+      title,
+      description,
+      imageUrl,
+      ...otherFields
     });
-
+    await quiz.save();
+    res.status(201).json(quiz);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur lors de la création du quiz.' });
   }
 });
-
-router.post('/finish', verifyToken, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { score, timeSpent, totalQuestions, correctAnswers } = req.body;
-
-    if (typeof score !== 'number' || typeof timeSpent !== 'number') {
-      return res.status(400).json({ error: 'Score ou temps invalide' });
-    }
-
-    let stats = await UserStats.findOne({ userId });
-    if (!stats) {
-      stats = new UserStats({ userId });
-    }
-
-    stats.quizCompleted += 1;
-    stats.totalScore += score;
-    stats.totalQuestions += totalQuestions || 1;
-    stats.correctAnswers += correctAnswers || 0;
-    stats.totalTimeSpent += timeSpent;
-    stats.averageScore = Math.round(stats.totalScore / stats.quizCompleted);
-
-    await stats.save();
-
-    res.json({ message: 'Stats mises à jour avec succès!' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
+// Ajoute cette route dans tes routes quiz
+router.post('/:quizId/submit', async (req, res) => {
+  const { quizId } = req.params;
+  const { answers } = req.body;
+  // Ici tu peux traiter et sauvegarder les réponses
+  // Pour l’instant, on renvoie une réponse de succès factice
+  res.json({
+    message: 'Résultat reçu',
+    badges: [], // ou les badges calculés si tu veux
+    success: true
+  });
 });
-
-// Routes quiz-results (chemins fixes)
-router.post('/quiz-results', verifyToken, quizResultController.createResult);
-router.get('/quiz-results/:userId', verifyToken, quizResultController.getUserResults);
-
-// ================================
-// ROUTES PRINCIPALES QUIZ
-// ================================
-
-// Créer un quiz
-router.post('/', verifyToken, checkRole('admin'), upload.single('image'), quizController.createQuiz);
-
-// Récupérer tous les quiz
-router.get('/', quizController.getAllQuizzes);
-
-// ================================
-// ROUTES AVEC PARAMÈTRES DYNAMIQUES (:quizId)
-// Ces routes DOIVENT venir AVANT les routes /:id
-// ================================
-
-// ✅ Route de completion status - MAINTENANT EN BON ORDRE
-router.get('/:quizId/completion-status', verifyToken, quizController.getQuizCompletionStatus);
-
-// Soumettre un résultat de quiz
-router.post('/:quizId/submit', verifyToken, quizController.submitQuizResult);
-
-// Routes questions liées à un quiz
-router.post('/:quizId/questions', verifyToken, checkRole('admin'), questionController.createQuestion);
-router.get('/:quizId/questions', verifyToken, questionController.getQuestionsByQuiz);
-// Juste après vos autres routes :quizId
-// ================================
-// ROUTES AVEC /:id (EN DERNIER!)
-// ================================
-
-// ⚠️ Ces routes doivent être EN DERNIER car /:id capture tout
-router.get('/:id', quizController.getQuizById);
-router.put('/:id', verifyToken, checkRole('admin'), upload.single('image'), quizController.updateQuiz);
-router.delete('/:id', verifyToken, checkRole('admin'), quizController.deleteQuiz);
-router.post('/:id/duplicate', verifyToken, checkRole('admin'), quizController.duplicateQuiz);
-
-// ================================
-// ROUTES QUESTIONS AVEC ID SPÉCIFIQUE
-// ================================
-
-router.put('/questions/:id', verifyToken, checkRole('admin'), questionController.updateQuestion);
-router.delete('/questions/:id', verifyToken, checkRole('admin'), questionController.deleteQuestion);
-
-module.exports = router;
+  

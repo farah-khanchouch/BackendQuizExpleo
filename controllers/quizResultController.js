@@ -1,55 +1,14 @@
 const QuizResult = require('../models/QuizResult');
 const User = require('../models/User'); // Assurez-vous d'avoir ce modèle
 
-// Ajoutez cette méthode au début de votre fichier, juste après les imports
-exports.checkQuizCompletion = async (req, res) => {
-  try {
-    const { quizId } = req.params;
-    const userId = req.user._id; // Assurez-vous que le middleware d'authentification est bien en place
-
-    const quiz = await Quiz.findById(quizId);
-    if (!quiz) {
-      return res.status(404).json({ error: 'Quiz non trouvé' });
-    }
-
-    // Vérifier si l'utilisateur a déjà complété ce quiz
-    const existingResult = await QuizResult.findOne({ userId, quizId });
-    
-    res.json({
-      completed: !!existingResult,
-      isReplayable: quiz.isReplayable !== false, // Par défaut true
-      lastAttempt: existingResult?.completedAt
-    });
-  } catch (error) {
-    console.error('Erreur lors de la vérification du statut du quiz:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-};
-
-// Modifiez la méthode createExistante comme suit
+// POST /api/quiz-results - Sauvegarder un nouveau résultat
 exports.createResult = async (req, res) => {
   try {
-    const { userId, quizId } = req.body;
-    
-    // Vérifier si le quiz existe et s'il est rejouable
-    const quiz = await Quiz.findById(quizId);
-    if (!quiz) {
-      return res.status(404).json({ error: 'Quiz non trouvé' });
-    }
+    console.log('Données reçues:', req.body);
 
-    // Vérifier si l'utilisateur a déjà complété ce quiz et s'il n'est pas rejouable
-    if (quiz.isReplayable === false) {
-      const existingResult = await QuizResult.findOne({ userId, quizId });
-      if (existingResult) {
-        return res.status(400).json({ 
-          error: 'Vous avez déjà complété ce quiz et il ne peut pas être refait',
-          completed: true
-        });
-      }
-    }
-
-    // Le reste de votre logique existante...
     const {
+      userId,
+      quizId,
       quizTitle,
       theme,
       score,
@@ -73,8 +32,8 @@ exports.createResult = async (req, res) => {
     const quizResult = new QuizResult({
       userId,
       quizId,
-      quizTitle: quizTitle || quiz.title || 'Quiz sans titre',
-      theme: theme || quiz.theme || 'general',
+      quizTitle: quizTitle || 'Quiz sans titre',
+      theme: theme || 'general',
       score,
       totalQuestions,
       correctAnswers,
@@ -96,6 +55,7 @@ exports.createResult = async (req, res) => {
     });
   }
 };
+
 // GET /api/quiz-results/:userId - Récupérer tous les résultats d'un utilisateur
 exports.getUserResults = async (req, res) => {
   try {
